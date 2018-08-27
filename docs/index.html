@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Canvas</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="container"></div>
+
+<script src="js/TweenMax.min.js"></script>
+<script src="js/three.js"></script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+  varying vec2 vUv;
+  uniform vec2 u_size;
+  uniform vec2 u_resolution;
+  void main() {
+    vUv = (position.xy+1.0)*0.3;
+		float scalex,scaley;
+		scalex = u_size.x/(u_resolution.x);
+		scaley = u_size.y/(u_resolution.y);
+		vUv.x = vUv.x/scalex;
+		vUv.y = vUv.y/scaley;
+		gl_Position =  vec4(position, 1.0);
+  }
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+  varying vec2 vUv;
+  uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
+  uniform float u_animation;
+  uniform float u_time;
+  uniform sampler2D texture;
+  uniform sampler2D map;
+
+  void main() {
+
+    float m = (u_mouse.x / u_resolution.x - 0.5) * 0.001;
+
+    float distort = sin(vUv.y * 150.0 + (u_time * 1.0)) * 0.0015 + m;
+    float map = texture2D(map, vUv).r * u_animation;
+    vec4 color = texture2D(texture, vec2(vUv.x + distort * map, vUv.y));
+
+    gl_FragColor = vec4(vec3(0.0, 0.5, 0.0), 1.0);
+    gl_FragColor = vec4(color.rgb, 1.0);
+    // gl_FragColor = vec4(map*vec3(color.g + color.r + color.g)/3.0 + (1.0-map)*color.rgb, 1.0); // popa - black and white
+
+  }
+</script>
+
+<script>
+  let container;
+  let camera, scene, renderer;
+  let uniforms;
+  let mouse = {x: 0, y: 0};
+  let loader = new THREE.TextureLoader();
+  document.onmousemove = getMouseXY;
+
+  let MyTexture = loader.load('img/foto.jpg', function () {
+    init();
+    animate();
+  });
+
+  function getMouseXY(e) {
+    mouse.x = e.pageX;
+    mouse.y = e.pageY;
+    uniforms.u_mouse.value.x = mouse.x;
+    uniforms.u_mouse.value.y = mouse.y;
+  }
+
+  function init() {
+    container = document.querySelector('.container');
+
+    camera = new THREE.Camera();
+    camera.position.z = 1;
+    scene = new THREE.Scene();
+    let geometry = new THREE.PlaneBufferGeometry(2, 2);
+
+
+    uniforms = {
+      u_time: {type: 'f', value: 1.0},
+      u_animation: {type: 'f', value: 1.0},
+      u_mouse: {type: 'v2', value: new THREE.Vector2()},
+      u_resolution: {type: 'v2', value: new THREE.Vector2()},
+      u_size: {type: 'v2', value: new THREE.Vector2(MyTexture.image.width, MyTexture.image.height)},
+      texture: {value: MyTexture},
+      map: {value: loader.load('img/popkamap.jpg')}
+    };
+
+    let material = new THREE.ShaderMaterial({
+      uniforms: uniforms,
+      vertexShader: document.querySelector('#vertexShader').textContent,
+      fragmentShader: document.querySelector('#fragmentShader').textContent
+    });
+
+
+    let mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+    renderer = new THREE.WebGLRenderer();
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    container.appendChild(renderer.domElement);
+    onWindowResize();
+    window.addEventListener('resize', onWindowResize, false);
+  }
+
+  function onWindowResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+//    uniforms.u_resolution.value.x = renderer.domElement.width;
+    uniforms.u_resolution.value.x = renderer.domElement.width + MyTexture.image.width;
+//    uniforms.u_resolution.value.x = renderer.domElement.height;
+    uniforms.u_resolution.value.y = renderer.domElement.height + MyTexture.image.height;
+    uniforms.u_mouse.value.x = mouse.x;
+    uniforms.u_mouse.value.y = mouse.y;
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    render();
+  }
+
+  function render() {
+    uniforms.u_time.value += 0.05;
+    renderer.render(scene, camera);
+  }
+
+  document.addEventListener('click', () => {
+    let tl = new TimelineMax();
+    tl
+      .to(uniforms.u_animation, 1.5, {value: 1, ease: Power3.easeInOut})
+  });
+</script>
+</body>
+</html>
